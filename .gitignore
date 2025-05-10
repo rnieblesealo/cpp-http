@@ -1,0 +1,49 @@
+# Build directories
+/build/
+/out/
+/bin/
+/lib/
+
+# CMake-generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+CTestTestfile.cmake
+install_manifest.txt
+
+# Ninja build files (if using Ninja)
+build.ninja
+.ninja_deps
+.ninja_log
+
+# IDE and editor files
+*.swp
+*.swo
+*.user
+*.VC.db
+*.VC.opendb
+.idea/
+.vscode/
+
+# Compilation artifacts
+*.o
+*.obj
+*.lo
+*.a
+*.so
+*.dll
+*.dylib
+*.exe
+*.out
+
+# Logs and test outputs
+Testing/
+test_results/
+*.log
+
+# MacOS files
+.DS_Store
+
+# Windows files
+Thumbs.db
