@@ -112,3 +112,8 @@ TcpServer::TcpServer(std::string ip_address, int port)
 - Initializer list is required for const members
 - They avoid default construction (which sets stuff to garbage/undefined values) only to then (possibly) assign a new one in the constructor body
     - *We avoid the unnecessary extra memory/calls with these!*
+
+# References
+
+- [Medium C++ HTTP server tutorial](https://osasazamegbe.medium.com/showing-building-an-http-server-from-scratch-in-c-2da7c0db6cb7)
+- [Oracle socket docs](https://docs.oracle.com/javase/tutorial/networking/sockets/definition.html)
