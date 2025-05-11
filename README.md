@@ -36,6 +36,11 @@ then server's talkback sock is:
 ```
 - Port tells TCP what app to send data to
 
+**Address Family:** *What kind of addresses are we working with?* Tells us what IP looks like.
+- `AF_INET` = IPv4 = 32-bit IP, e.g. `192.168.0.1`
+- `AF_INET6` = IPv6 = 128-bit IP, e.g. `2001:0db8::1`
+> Bitness difference is scale; IPv4 supports ~4.3 billion addresses which seemed like plenty back then! IPv6 allows for many, many more
+
 # CPP
 
 ### Namespaces
@@ -112,6 +117,30 @@ TcpServer::TcpServer(std::string ip_address, int port)
 - Initializer list is required for const members
 - They avoid default construction (which sets stuff to garbage/undefined values) only to then (possibly) assign a new one in the constructor body
     - *We avoid the unnecessary extra memory/calls with these!*
+
+### `sockaddr_in` Caveats
+
+```
+definition of one IP + port endpoint (a full socket connection consists of 2 such endpoints):
+
+struct sockaddr_in {
+    short           sin_family    // address family
+    unsigned short  sin_port      // port, use hton() for network byte order
+    struct          in_addr       // the IP, see below...
+    char            sin_zero[8]   // padding
+}
+
+struct in_addr {
+    unsigned long   s_addr        // IPv4 for AF_INET
+}
+```
+- `in_addr`, the IP, is its own struct mainly for self-documenting code 
+    - IPs are dinstinct enough that we treat them as their own type 
+- **Padding** = insert extra bytes to align things 
+    - Usually for performance
+    - *Not in this case!*
+        - `struct sockaddr` (diff. from `sockaddr_in`) is a more generic endpoint structure 
+        - To safely use `sockaddr_in` where `sockaddr` is expected, we use padding so their sizes and layouts match
 
 # References
 
