@@ -11,6 +11,7 @@
 
 #include <arpa/inet.h>
 #include <iostream>
+#include <sstream>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
@@ -25,6 +26,8 @@ public:
   ~TcpServer();
 
 private:
+  typedef int SOCKET;
+
   std::string m_ip_address;
   int m_port;
   int m_socket;
@@ -52,6 +55,8 @@ private:
 
   int startServer();
   void closeServer();
+  void startListen();
+  void acceptConnection(SOCKET &new_socket);
 };
 
 } // namespace http
