@@ -66,7 +66,7 @@ As such, client's address can be *ephemeral.*
 
 Now that the client has its address, we have a socket pair, and thus, a connection!
 
-# General C++ 
+# C++ 
 
 ### Namespaces
 
@@ -158,7 +158,21 @@ TcpServer::TcpServer(std::string ip_address, int port)
 - They avoid default construction (which sets stuff to garbage/undefined values) only to then (possibly) assign a new one in the constructor body
     - *We avoid the unnecessary extra memory/calls with these!*
 
-# Network C++
+### `std::osstringstream`
+
+In-memory string builder, call `ss.str()` to convert to printable string.
+```
+  std::ostringstream ss;
+
+  ss << "\n*** Listening on ADDR: " 
+     << inet_ntoa(m_socketAddress.sin_addr)
+     << " PORT: " << ntohs(m_socketAddress.sin_port) 
+     << " ***\n\n";
+
+  std::cout << ss.str();
+```
+
+## Networked C++
 
 ### `sockaddr_in`
 
@@ -192,24 +206,136 @@ serverAddress.sin_addr.s_addr = INADDR_ANY;     // listen for connections on any
     - `sockaddr_in` extensively defines IPv4 address; `sockaddr` generically defines an address from any family and is what is ultimately passed to `bind()`, `connect()`, etc.
     - To safely use `sockaddr_in` where `sockaddr` is expected, we use padding so their sizes and layouts match
 
-### `std::osstringstream`
-
-In-memory string builder, call `ss.str()` to convert to printable string.
-```
-  std::ostringstream ss;
-
-  ss << "\n*** Listening on ADDR: " 
-     << inet_ntoa(m_socketAddress.sin_addr)
-     << " PORT: " << ntohs(m_socketAddress.sin_port) 
-     << " ***\n\n";
-
-  std::cout << ss.str();
-```
-
 ### String Literals w/`const char*`
 
 String literals (any strings we hardcode) are ALWAYS of type `const char*`
 > `const` in the param says "this value should NOT be modified inside the function!"
+
+### `recv()`
+
+Receives bytes from the server; 99% of time we want to put this in buffer
+```
+char buffer[1024];
+ssize_t bytesReceived = recv(clientSocket, buffer, sizeof(buffer) - 1, 0);
+```
+- Behaves like `accept()`; what we haven't `recv()`'d will be buffered by the kernel:
+    1. TCP accepts and acknowledges incoming packets
+    2. Packets are stored in kernel buffer
+    3. Data waits there until we call `recv()`
+- If OK, returns number of bytes received
+- If server gracefully closed connection, returns `0`
+- If server connection gets terminated, returns `< 0`
+
+## Threaded C++
+
+We create a thread like this: `std::thread(func, arg1, arg2, arg3, ...)`
+> First arg is a function, subsequent args are params we pass to that function
+
+### `.detach()` and `.join()`
+
+When doing `std::thread()` we must also call either `detach()` or `join()` to specify whether the thread will async or block 
+
+```
+std::thread(...).detach() 
+std::thread(...).join()
+```
+
+`detach()` makes the thread asynchronous
+- It is now unmanaged; *its own thing*
+
+`join()` makes the thread blocking
+- It ensures that our main thread waits for the `.join()`ed thread to finish before moving on   
+```
+e.g.
+
+void foo();
+
+std::thread t(foo);     // execute foo immediately
+
+...                     // do other stuff
+
+t.join();               // even if the other stuff is done first, 
+                        // we can't go past here unless foo also finishes
+```
+
+**Bear in mind that a new thread begins running immediately after creating it, not when we call `.detach()` or `.join()`!**
+
+If we never call `.detach()` or `.join()`, C++ will call `std::terminate()`, crashing our program
+- C++ doesn't know what the f**k to do with the thread
+> Do I wait for it to finish? Do I let it do its own thing?
+- So as a response, it blows everything up because we weren't explicit
+
+### Mutex Locks
+
+Threads may share variables
+
+One of these is `stdout`
+
+This means that many threads running in parallel may write to `stdout` at the same time
+
+```
+if thread 1 tries to write "foo",
+and thread 2 tries to write "bar",
+
+and both happen to try and write at the same time,
+
+we may not get "foobar",
+but instead "fboaor" in stdout
+```
+
+To prevent this from happening, we can use `std::mutex()`:
+
+```
+-- main ---------------
+
+std::mutex m;
+
+void safePrint(const std::string& s){
+    m.lock();       // lock all other threads from running the following 
+    fmt::print(s);
+    m.unlock();     // unlock
+}
+
+std::thread(safePrint, "foo").detach();
+std::thread(safePrint, "bar").detach();
+
+-----------------------
+
+stdout: "foobar" or "barfoo" depending on which runs first
+```
+
+- When a thread acquires a `.lock()` on a `std::mutex`, it blocks other threads from acquiring that mutex 
+    - The other threads will have to wait at the same `.lock()` call until the mutex is unlocked by its owning thread
+    - As a result, code enclosed by `.lock()` and `.unlock()` is held off from running!
+
+But what if something goes wrong before we get to `.unlock()`? 
+
+We're f**ked!
+
+Unless we use `std::lock_guard`
+
+```
+-- main ---------------
+
+std::mutex m;
+
+void safePrint(const std::string& s){
+    std::lock_guard<std::mutex> lock(m); // using this instead!
+    fmt::print(s);
+}
+
+std::thread(safePrint, "foo").detach();
+std::thread(safePrint, "bar").detach();
+
+-----------------------
+
+stdout: same effect; "foobar" or "barfoo"
+```
+
+- This is a safer version of the lock unlock pattern
+- It automatically unlocks mutex when it goes out of scope 
+    - If we early return, except, etc. the lock is still released
+    - **BUT if something hard-crashes in the mutex owner thread, we're f\*\*ked; it'll never get released**
 
 # CMake
 
@@ -247,3 +373,9 @@ target_link_libraries(MyProject PRIVATE fmt::fmt)
 
 - [Medium C++ HTTP server tutorial](https://osasazamegbe.medium.com/showing-building-an-http-server-from-scratch-in-c-2da7c0db6cb7)
 - [Oracle socket docs](https://docs.oracle.com/javase/tutorial/networking/sockets/definition.html)
+
+---
+Questions I have:
+- Handle server connection terminate
+- Handle async
+- Behavior of input loop 
