@@ -10,14 +10,22 @@ Notes for barebones C++ HTTP server project
 - IP is street address
 - Port is apartment number
 
-**Socket**: Connection endpoint, a *socket pair* is defined by this combination:
+**Socket**: Connection endpoint, a socket is defined as `<ip>:<port>` 
+
+**Address Family:** *What kind of addresses are we working with?* Tells us what IP looks like.
+- `AF_INET` = IPv4 = 32-bit IP, e.g. `192.168.0.1`
+- `AF_INET6` = IPv6 = 128-bit IP, e.g. `2001:0db8::1`
+> Bitness difference is scale; IPv4 supports ~4.3 billion addresses which seemed like plenty back then! IPv6 allows for many, many more
+
+### How a Connection Works
+
 ```
 <local ip>:<local port> <--> <remote ip>:<remote port>
 ```
 
-This combination defines a **connection!**
+These are 2 sockets in a pair, a *socket pair*
 
-How a connection works:
+A socket pair forms a **connection!**
 
 1. Server listens for connections on a port
 2. Client needs the server's IP (unique identifier) and the port number to attempt connection
@@ -26,10 +34,6 @@ How a connection works:
 3. Client must also identify itself for server to know socket pair 
 4. On connection OK, new socket in server is created to talk back to client
 5. At this point we have 2 socket pair which are inverses of each other:
-6. A socket can then be written to using a file descriptor (kinda like how pipes work!)
-- Sockets are places where data exchange is meant to happen, this is why they have an associated fd
-- Calling `socket()` creates this place, but we need to `bind()` it to an addr. so any exchange can begin to occur
-- In other words, a blank socket is like a pipe that isn't hooked up yet 
 ```
 following the <IP>:<PORT> format,
 
@@ -41,20 +45,19 @@ then server's talkback sock is:
     LOCAL = A:1
     REMOTE = B:2
 ```
+6. A socket can then be written to using a file descriptor (kinda like how pipes work!)
+- Sockets are places where data exchange is meant to happen, this is why they have an associated fd
+- Calling `socket()` creates this place, but we need to `bind()` it to an addr. so any exchange can begin to occur
+- In other words, a blank socket is like a pipe that isn't hooked up yet 
 - Port tells TCP what app to send data to
-
-**Address Family:** *What kind of addresses are we working with?* Tells us what IP looks like.
-- `AF_INET` = IPv4 = 32-bit IP, e.g. `192.168.0.1`
-- `AF_INET6` = IPv6 = 128-bit IP, e.g. `2001:0db8::1`
-> Bitness difference is scale; IPv4 supports ~4.3 billion addresses which seemed like plenty back then! IPv6 allows for many, many more
 
 ### Why Connecting Client Doesn't Need to Bind
 
 Server must listen on well-known IP and port **so client knows where to reach it.**
 
-Client isn't listening, it's just reaching out
+Client isn't listening, it's just reaching out.
 
-So while client does need an address to come from, this address' details aren't as important as the server's 
+So while client does need an address to come from, this address' details aren't as important as the server's.
 
 As such, client's address can be *ephemeral.*
 
@@ -63,7 +66,7 @@ As such, client's address can be *ephemeral.*
 
 Now that the client has its address, we have a socket pair, and thus, a connection!
 
-# CPP
+# General C++ 
 
 ### Namespaces
 
@@ -90,8 +93,25 @@ Video::log();   // prints "Video"
 
 ### Include Guards
 
-`#ifndef <header> #define <header>` is an include guard that avoids processing the same header twice 
-- If we didn't do that, including the file twice would throw something like `redefinition of ...` referring to stuff inside the header
+```
+-- header.h ----------
+
+#ifndef HEADER
+#define HEADER
+
+#include <something.h>
+
+namespace something {
+    void doSomething();
+}
+
+...
+
+#endif
+```
+
+Include guard avoids processing the same header twice 
+- If we didn't do that, including the file twice would throw redefinition errors 
 
 ### Include Brackets or Quotes?
 
@@ -103,8 +123,6 @@ Video::log();   // prints "Video"
 
 Belong to constructors; they initialize class members before constructor body runs
 ```
-e.g.
-
 -- tcpServer.hpp (definition) ---------------------------
 
 class TcpServer {
@@ -140,10 +158,13 @@ TcpServer::TcpServer(std::string ip_address, int port)
 - They avoid default construction (which sets stuff to garbage/undefined values) only to then (possibly) assign a new one in the constructor body
     - *We avoid the unnecessary extra memory/calls with these!*
 
-### `sockaddr_in` Caveats
+# Network C++
 
+### `sockaddr_in`
+
+Defines an address.
 ```
-definition of one IP + port endpoint (a full socket connection consists of 2 such endpoints):
+-- definition -------------------------------------
 
 struct sockaddr_in {
     short           sin_family    // address family
@@ -155,15 +176,21 @@ struct sockaddr_in {
 struct in_addr {
     unsigned long   s_addr        // IPv4 for AF_INET
 }
+
+-- usage ------------------------------------------
+
+sockaddr_in serverAddress;
+
+serverAddress.sin_family = AF_INET;
+serverAddress.sin_port = htons(8080);           // put port in network byte order
+serverAddress.sin_addr.s_addr = INADDR_ANY;     // listen for connections on any of this machine's IPs
+
 ```
 - `in_addr`, the IP, is its own struct mainly for self-documenting code 
     - IPs are dinstinct enough that we treat them as their own type 
-- **Padding** = insert extra bytes to align things 
-    - Usually for performance
-    - *Not in this case!*
-        - `struct sockaddr` (diff. from `sockaddr_in`) is a more generic endpoint structure 
-        - To safely use `sockaddr_in` where `sockaddr` is expected, we use padding so their sizes and layouts match
-- `sockaddr_in` extensively defines IPv4 address; `sockaddr` generically defines an address from any family and is what is ultimately passed to `bind()`, `connect()`, etc.
+- Padding allows us to align struct bytes for compat. with `sockaddr` 
+    - `sockaddr_in` extensively defines IPv4 address; `sockaddr` generically defines an address from any family and is what is ultimately passed to `bind()`, `connect()`, etc.
+    - To safely use `sockaddr_in` where `sockaddr` is expected, we use padding so their sizes and layouts match
 
 ### `std::osstringstream`
 
@@ -183,6 +210,38 @@ In-memory string builder, call `ss.str()` to convert to printable string.
 
 String literals (any strings we hardcode) are ALWAYS of type `const char*`
 > `const` in the param says "this value should NOT be modified inside the function!"
+
+# CMake
+
+### Get `clangd` Working
+
+Ensure we do `set(CMAKE_EXPORT_COMPILE_COMMANDS ON)`
+- This exports `compile_commands.json`, a compilation DB
+- Symbols, include paths can be known to LSP using this
+
+### Adding a Dependency
+
+e.g. `fmt`:
+```
+# enable fetchcontent module
+include(FetchContent)
+
+# declare dependency; specify git repo + version
+FetchContent_Declare(fmt
+  GIT_REPOSITORY https://github.com/fmtlib/fmt.git
+  GIT_TAG 10.2.1
+)
+
+# download, build, and add to project
+FetchContent_MakeAvailable(fmt)
+
+...
+
+# link it to exe!
+target_link_libraries(MyProject PRIVATE fmt::fmt)
+```
+- `PRIVATE` in `target_link` links the dep. to our project, but doesn't expose it to anything that includes our project
+- We don't always target link like `fmt::fmt`; read the docs to know how!
 
 # References
 
