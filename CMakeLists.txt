@@ -26,18 +26,25 @@ FetchContent_MakeAvailable(fmt)
 # NOTE: we're statically linking helper into each executable
 # for larger projects, consider dynamic linking :)
 add_executable(AppServer
-  src/socket/server.cpp
-  src/socket/helper.cpp
+  src/chat/server.cpp
+  src/helper/helper.cpp
 )
 
 add_executable(AppClient
-  src/socket/client.cpp
-  src/socket/helper.cpp
+  src/chat/client.cpp
+  src/helper/helper.cpp
 )
 
 # tell cmake where to look for header files
-target_include_directories(AppServer PRIVATE src/socket)
-target_include_directories(AppClient PRIVATE src/socket)
+target_include_directories(AppServer PRIVATE 
+  src/chat 
+  src/helper
+)
+
+target_include_directories(AppClient PRIVATE 
+  src/chat 
+  src/helper
+)
 
 # link fmt
 target_link_libraries(AppServer PRIVATE fmt::fmt)

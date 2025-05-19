@@ -369,6 +369,12 @@ target_link_libraries(MyProject PRIVATE fmt::fmt)
 - `PRIVATE` in `target_link` links the dep. to our project, but doesn't expose it to anything that includes our project
 - We don't always target link like `fmt::fmt`; read the docs to know how!
 
+## POSIX C++
+
+### `poll()`
+
+Waits for a file descriptor to be ready for a certain operation
+
 # References
 
 - [Medium C++ HTTP server tutorial](https://osasazamegbe.medium.com/showing-building-an-http-server-from-scratch-in-c-2da7c0db6cb7)
